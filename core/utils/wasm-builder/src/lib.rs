@@ -77,7 +77,11 @@
 //! - rust nightly + `wasm32-unknown-unknown` toolchain
 //!
 
-use std::{env, fs, path::PathBuf, process::{Command, Stdio, self}};
+use std::{
+    env, fs,
+    path::PathBuf,
+    process::{self, Command, Stdio},
+};
 
 mod prerequisites;
 mod wasm_project;
@@ -107,7 +111,7 @@ const WASM_TARGET_DIRECTORY: &str = "WASM_TARGET_DIRECTORY";
 ///               constant `WASM_BINARY`, which contains the built WASM binary.
 /// `cargo_manifest` - The path to the `Cargo.toml` of the project that should be built.
 pub fn build_project(file_name: &str, cargo_manifest: &str) {
-	build_project_with_default_rustflags(file_name, cargo_manifest, "");
+    build_project_with_default_rustflags(file_name, cargo_manifest, "");
 }
 
 /// Build the currently built project as WASM binary.
@@ -119,123 +123,104 @@ pub fn build_project(file_name: &str, cargo_manifest: &str) {
 /// `cargo_manifest` - The path to the `Cargo.toml` of the project that should be built.
 /// `default_rustflags` - Default `RUSTFLAGS` that will always be set for the build.
 pub fn build_project_with_default_rustflags(
-	file_name: &str,
-	cargo_manifest: &str,
-	default_rustflags: &str,
+    file_name: &str,
+    cargo_manifest: &str,
+    default_rustflags: &str,
 ) {
-	if check_skip_build() {
-		return;
-	}
+    if check_skip_build() {
+        return;
+    }
 
-	let cargo_manifest = PathBuf::from(cargo_manifest);
+    let cargo_manifest = PathBuf::from(cargo_manifest);
 
-	if !cargo_manifest.exists() {
-		panic!("'{}' does not exist!", cargo_manifest.display());
-	}
+    if !cargo_manifest.exists() {
+        panic!("'{}' does not exist!", cargo_manifest.display());
+    }
 
-	if !cargo_manifest.ends_with("Cargo.toml") {
-		panic!("'{}' no valid path to a `Cargo.toml`!", cargo_manifest.display());
-	}
+    if !cargo_manifest.ends_with("Cargo.toml") {
+        panic!(
+            "'{}' no valid path to a `Cargo.toml`!",
+            cargo_manifest.display()
+        );
+    }
 
-	if let Some(err_msg) = prerequisites::check() {
-		eprintln!("{}", err_msg);
-		process::exit(1);
-	}
+    if let Some(err_msg) = prerequisites::check() {
+        eprintln!("{}", err_msg);
+        process::exit(1);
+    }
 
-	let (wasm_binary, bloaty) = wasm_project::create_and_compile(
-		&cargo_manifest,
-		default_rustflags,
-	);
+    let (wasm_binary, bloaty) =
+        wasm_project::create_and_compile(&cargo_manifest, default_rustflags);
 
-	write_file_if_changed(
-		file_name.into(),
-		format!(
-			r#"
+    write_file_if_changed(
+        file_name.into(),
+        format!(
+            r#"
 				pub const WASM_BINARY: &[u8] = include_bytes!("{wasm_binary}");
 				pub const WASM_BINARY_BLOATY: &[u8] = include_bytes!("{wasm_binary_bloaty}");
 			"#,
-			wasm_binary = wasm_binary.wasm_binary_path(),
-			wasm_binary_bloaty = bloaty.wasm_binary_bloaty_path(),
-		),
-	);
+            wasm_binary = wasm_binary.wasm_binary_path(),
+            wasm_binary_bloaty = bloaty.wasm_binary_bloaty_path(),
+        ),
+    );
 }
 
 /// Checks if the build of the WASM binary should be skipped.
 fn check_skip_build() -> bool {
-	env::var(SKIP_BUILD_ENV).is_ok()
+    env::var(SKIP_BUILD_ENV).is_ok()
 }
 
 /// Write to the given `file` if the `content` is different.
 fn write_file_if_changed(file: PathBuf, content: String) {
-	if fs::read_to_string(&file).ok().as_ref() != Some(&content) {
-		fs::write(&file, content).expect(&format!("Writing `{}` can not fail!", file.display()));
-	}
+    if fs::read_to_string(&file).ok().as_ref() != Some(&content) {
+        fs::write(&file, content).expect(&format!("Writing `{}` can not fail!", file.display()));
+    }
 }
 
 /// Get a cargo command that compiles with nightly
 fn get_nightly_cargo() -> CargoCommand {
-	let default_cargo = CargoCommand::new("cargo");
-	let mut rustup_run_nightly = CargoCommand::new("rustup");
-	rustup_run_nightly.args(&["run", "nightly", "cargo"]);
-
-	if default_cargo.is_nightly() {
-		default_cargo
-	} else if rustup_run_nightly.works() {
-		rustup_run_nightly
-	} else {
-		default_cargo
-	}
+    CargoCommand::new("cargo")
 }
 
 /// Builder for cargo commands
 #[derive(Debug)]
 struct CargoCommand {
-	program: String,
-	args: Vec<String>,
+    program: String,
+    args: Vec<String>,
 }
 
 impl CargoCommand {
-	fn new(program: &str) -> Self {
-		CargoCommand { program: program.into(), args: Vec::new() }
-	}
+    fn new(program: &str) -> Self {
+        CargoCommand {
+            program: program.into(),
+            args: Vec::new(),
+        }
+    }
 
-	fn arg(&mut self, arg: &str) -> &mut Self {
-		self.args.push(arg.into());
-		self
-	}
+    fn arg(&mut self, arg: &str) -> &mut Self {
+        self.args.push(arg.into());
+        self
+    }
 
-	fn args(&mut self, args: &[&str]) -> &mut Self {
-		args.into_iter().for_each(|a| { self.arg(a); });
-		self
-	}
+    fn args(&mut self, args: &[&str]) -> &mut Self {
+        args.into_iter().for_each(|a| {
+            self.arg(a);
+        });
+        self
+    }
 
-	fn command(&self) -> Command {
-		let mut cmd = Command::new(&self.program);
-		cmd.args(&self.args);
-		cmd
-	}
+    fn command(&self) -> Command {
+        let mut cmd = Command::new(&self.program);
+        cmd.args(&self.args);
+        cmd
+    }
 
-	fn works(&self) -> bool {
-		self.command()
-			.stdout(Stdio::null())
-			.stderr(Stdio::null())
-			.status()
-			.map(|s| s.success()).unwrap_or(false)
-	}
-
-	/// Check if the supplied cargo command is a nightly version
-	fn is_nightly(&self) -> bool {
-		// `RUSTC_BOOTSTRAP` tells a stable compiler to behave like a nightly. So, when this env
-		// variable is set, we can assume that whatever rust compiler we have, it is a nightly compiler.
-		// For "more" information, see:
-		// https://github.com/rust-lang/rust/blob/fa0f7d0080d8e7e9eb20aa9cbf8013f96c81287f/src/libsyntax/feature_gate/check.rs#L891
-		env::var("RUSTC_BOOTSTRAP").is_ok() ||
-			self.command()
-				.arg("--version")
-				.output()
-				.map_err(|_| ())
-				.and_then(|o| String::from_utf8(o.stdout).map_err(|_| ()))
-				.unwrap_or_default()
-				.contains("-nightly")
-	}
+    fn works(&self) -> bool {
+        self.command()
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
 }

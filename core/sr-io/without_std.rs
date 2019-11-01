@@ -18,7 +18,7 @@
 pub use rstd;
 pub use rstd::{mem, slice};
 
-use core::{intrinsics, panic::PanicInfo};
+use core::panic::PanicInfo;
 use rstd::{vec::Vec, cell::Cell, convert::TryInto};
 use primitives::offchain;
 use codec::Decode;
@@ -30,7 +30,7 @@ pub fn panic(info: &PanicInfo) -> ! {
 	unsafe {
 		let message = rstd::alloc::format!("{}", info);
 		extern_functions_host_impl::ext_print_utf8(message.as_ptr() as *const u8, message.len() as u32);
-		intrinsics::abort()
+		core::arch::wasm32::unreachable()
 	}
 }
 
@@ -41,7 +41,7 @@ pub extern fn oom(_: core::alloc::Layout) -> ! {
 
 	unsafe {
 		extern_functions_host_impl::ext_print_utf8(OOM_MSG.as_ptr(), OOM_MSG.len() as u32);
-		intrinsics::abort();
+		core::arch::wasm32::unreachable()
 	}
 }
 

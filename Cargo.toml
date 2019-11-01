@@ -17,6 +17,13 @@ ctrlc = { version = "3.1.3", features = ["termination"] }
 [build-dependencies]
 vergen = "3.0.4"
 
+[patch.crates-io]
+elastic-array = { path = "../elastic-array" }
+safe-mix = { path = "../safe-mix" }
+pwasm-utils = { path = "../wasm-utils" }
+wasmi = { path = "../wasmi" }
+wasmi-validation = { path = "../wasmi/validation" }
+
 [workspace]
 members = [
 	"core/authority-discovery",
